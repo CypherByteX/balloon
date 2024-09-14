@@ -1,0 +1,69 @@
+const express = require('express');
+const bodyParser = require('body-parser');
+const request = require('request');
+
+const app = express();
+const PAGE_ACCESS_TOKEN = 'YOUR_PAGE_ACCESS_TOKEN';
+
+app.use(bodyParser.json());
+
+// Verifying the webhook for Messenger
+app.get('/webhook', (req, res) => {
+    const VERIFY_TOKEN = 'your_verify_token';
+    let mode = req.query['hub.mode'];
+    let token = req.query['hub.verify_token'];
+    let challenge = req.query['hub.challenge'];
+
+    if (mode && token) {
+        if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+            res.status(200).send(challenge);
+        } else {
+            res.sendStatus(403);
+        }
+    }
+});
+
+// Handling incoming messages
+app.post('/webhook', (req, res) => {
+    let body = req.body;
+    
+    if (body.object === 'page') {
+        body.entry.forEach(function(entry) {
+            let webhookEvent = entry.messaging[0];
+            let senderId = webhookEvent.sender.id;
+            let message = webhookEvent.message.text;
+
+            if (message) {
+                sendResponse(senderId, 'Hello from your AI bot!');
+            }
+        });
+        res.status(200).send('EVENT_RECEIVED');
+    } else {
+        res.sendStatus(404);
+    }
+});
+
+// Sending messages back to the user
+function sendResponse(senderId, responseText) {
+    const requestBody = {
+        recipient: { id: senderId },
+        message: { text: responseText }
+    };
+
+    request({
+        uri: 'https://graph.facebook.com/v11.0/me/messages',
+        qs: { access_token: PAGE_ACCESS_TOKEN },
+        method: 'POST',
+        json: requestBody
+    }, (err, res, body) => {
+        if (!err) {
+            console.log('Message sent!');
+        } else {
+            console.error('Unable to send message:', err);
+        }
+    });    
+}
+
+app.listen(3000, () => {
+    console.log('Server is running on port 3000');
+});
